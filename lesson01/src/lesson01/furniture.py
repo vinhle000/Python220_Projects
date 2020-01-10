@@ -1,6 +1,6 @@
 """Furniture Product Transactions"""
 
-product_transactions = [('Chair', 'A', 10),
+PRODUCT_TRANSACTIONS = [('Chair', 'A', 10),
                         ('Bed', 'A', 12),
                         ('Couch', 'A', 10),
                         ('Table', 'A', 12),
@@ -57,8 +57,9 @@ def calculate_transactions(transactions):
             else:
                 raise ValueError("Transaction has caused quantity to go below zero")
 
-    return [(key,value) for key, value in transaction_dict.items()]
+        final_stock = [(key, value) for key, value in transaction_dict.items()]
+    return final_stock
 
 
-# if __name__ == "__main__":
-#     print(calculate_transactions(product_transactions))
+if __name__ == "__main__":
+    print(calculate_transactions(PRODUCT_TRANSACTIONS))
