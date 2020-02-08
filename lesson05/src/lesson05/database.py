@@ -25,6 +25,8 @@ def print_mdb_collection(collection_name):
 def load_csv_file(csv_file):
     """Loads the csv file items into a list """
     record_list = list()
+
+    # Had to include encoding, was loading extra symbols due to csv file format
     with open(csv_file, "r", encoding="utf8", newline='') as file:
         reader = csv.reader(file)
         for row in reader:
@@ -42,42 +44,119 @@ def import_data(directory_name, product_file, customer_file, rental_file):
     :return: 2 tuples, one representing record count of number of products, customers, rentals
                        the other for the count of any errors that occured
     """
-    # MAYBE can add each file to be a list, and iterate through and use this same for loop implemenation
 
     #product_data = load_csv_file(directory_name + "\\" + product_file)
+    client = pymongo.MongoClient(
+        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
+
+    # Lists for tracking record and error counts
+    record_count_list = list()
+    error_count_list = list()
 
     file_list = [product_file, customer_file, rental_file]
 
-    #TODO incorporate file list to perform loop for every file
-    #for file in file_list:
-    record_data = load_csv_file(os.path.join(directory_name, product_file))
-    logger.debug(record_data)
+    for file in file_list:
+        csv_records = load_csv_file(os.path.join(directory_name, file))
+        logger.debug(csv_records)
 
-    # list of each record as a dictionary
-    product_dict_list = list()
+        # list of each record as a dictionary
+        record_dict_list = list()
 
-    # First line of the csv file is the "Schema"
-    record_data_format = record_data[0]
+        # First line of the csv file is the "Schema" model for data structure
+        record_data_format = csv_records[0]
 
-    for record in record_data[1:]:
-        # Current product dictionary to be added to the list
-        curr_product_dict = dict()
-        for i in range(len(record)):
-            curr_product_dict[record_data_format[i]] = record[i]
-        product_dict_list.append(curr_product_dict)
+        # Creates a dict for every record in csv and appends to a list
+        for record in csv_records[1:]:
+            curr_product_dict = dict()
+            for i in range(len(record)):
+                curr_product_dict[record_data_format[i]] = record[i]
+            record_dict_list.append(curr_product_dict)
 
-    logger.debug(product_dict_list)
+        logger.debug(record_dict_list)
+
+        with client:
+            db = client.data
+
+            # file name is used database name
+            file_name = file.split(".")[0]
+            logger.debug(file_name)
+            record_db = db[file_name]
+
+            record_count = 0
+            error_count = 0
+
+            # Adds dictionary items to the database
+            for record_dict in record_dict_list:
+                #logger.debug(record_dict)
+                try:
+                    record_db.insert_one(record_dict)
+                    record_count += 1
+                except Exception as e:
+                    logger.error(e.__traceback__)
+                    error_count += 1
+
+            record_count_list.append(record_count)
+            error_count_list.append(error_count)
+
+            # OTHER METHOD
+            # Could use to insert many all dict records to mongodb,
+            # But wanted to check for errors every time a record is inserted
+            # result = product_d.insert_many(product_dict_list)
+
+    return tuple(record_count_list), tuple(error_count_list)
+
+
+def show_available_products():
+    """Returns a Python dictionary of products listed as available """
+    client = pymongo.MongoClient(
+        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
+
+    #Dict format {product_id : {description: val, product_type:val, quantity:val}
+
+
+    with client:
+        db = client["data"]
+        collection = db["product"]
+
+        results = collection.find()
+
+        product_dict = dict()
+        for result in results:
+            product_id_dict = dict()
+
+            product_id_dict['description'] = result['description']
+            product_id_dict['quantity_available'] = result['quantity_available']
+
+            product_id = result['\ufeffproduct_id']
+            product_dict[product_id] = product_id_dict
+
+            #print(result)
+
+    return product_dict
+
+    #TODO get user ID info from rentals
+def show_rentals(product_id):
+    """ Returns a Python dictionary with the user information from users that have rented products matching product_id"""
 
     client = pymongo.MongoClient(
         "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
 
     with client:
-        db = client.data
-        product_d = db["customer"]
-        # for product_dict in product_dict_list:
-        #     #db.insert_one(product_dict)
-        result = product_d.insert_many(product_dict_list)
-    return tuple()
+        db = client["data"]
+        rental_collection = db["rental"]
+        customer_collection = db["customers"]
+
+        current_rentals = rental_collection.find({'\ufeffproduct_id': product_id})
+
+        for rental in current_rentals:
+            print(rental)
+
+        # for rental in rental_collection.find():
+        #     print(rental)
+
+        # for customer in customer_collection.find():
+        #         #     print(customer)
+
 
 
 def main():
@@ -85,8 +164,10 @@ def main():
     csv_files_directory = os.path.abspath("data")
     logger.debug(csv_files_directory)
 
-    import_data(csv_files_directory, "product.csv", "customers.csv", "rental.csv")
+    #print(import_data(csv_files_directory, "product.csv", "customers.csv", "rental.csv"))
 
+    #print(show_available_products())
+    print(show_rentals('prd002'))
 
 if __name__ == "__main__":
     main()
