@@ -1,23 +1,16 @@
-import pymongo
-import dns # required for connecting with SRV
-import getpass
+"""MongoDB handling"""
 import csv
 import logging
 import os
-import json
+import pymongo
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-#p = getpass.getpass(prompt="Enter Pass: ", stream=None)
-# #client = pymongo.MongoClient("mongodb+srv://kay:myRealPassword@cluster0.mongodb.net/test?w=majority")
-# client = pymongo.MongoClient("mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
-# db = client.test
 
 
 def print_mdb_collection(collection_name):
-    """Helper function to print docs in collection withinn Mongo Database"""
+    """Helper function to print docs in collection within Mongo Database"""
     for doc in collection_name.find():
         print(doc)
 
@@ -36,7 +29,6 @@ def load_csv_file(csv_file):
 
 def import_data(directory_name, product_file, customer_file, rental_file):
     """
-
     :param directory_name: name of directory with csv files
     :param product_file: csv file with product data
     :param customer_file: csv file with customer data
@@ -47,7 +39,8 @@ def import_data(directory_name, product_file, customer_file, rental_file):
 
     #product_data = load_csv_file(directory_name + "\\" + product_file)
     client = pymongo.MongoClient(
-        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
+        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk"
+        ".mongodb.net/test?retryWrites=true&w=majority")
 
     # Lists for tracking record and error counts
     record_count_list = list()
@@ -103,16 +96,18 @@ def import_data(directory_name, product_file, customer_file, rental_file):
             # But wanted to check for errors every time a record is inserted
             # result = product_d.insert_many(product_dict_list)
 
+
+
     return tuple(record_count_list), tuple(error_count_list)
 
 
 def show_available_products():
     """Returns a Python dictionary of products listed as available """
+
+
     client = pymongo.MongoClient(
-        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
-
-    #Dict format {product_id : {description: val, product_type:val, quantity:val}
-
+        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk"
+        ".mongodb.net/test?retryWrites=true&w=majority")
 
     with client:
         db = client["data"]
@@ -123,51 +118,74 @@ def show_available_products():
         product_dict = dict()
         for result in results:
             product_id_dict = dict()
-
+            logger.debug(result)
             product_id_dict['description'] = result['description']
             product_id_dict['quantity_available'] = result['quantity_available']
 
             product_id = result['\ufeffproduct_id']
             product_dict[product_id] = product_id_dict
 
-            #print(result)
-
     return product_dict
 
-    #TODO get user ID info from rentals
+
 def show_rentals(product_id):
-    """ Returns a Python dictionary with the user information from users that have rented products matching product_id"""
+    """ Returns a Python dictionary with the user
+    information from users that have rented products matching product_id"""
 
     client = pymongo.MongoClient(
-        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk.mongodb.net/test?retryWrites=true&w=majority")
+        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk"
+        ".mongodb.net/test?retryWrites=true&w=majority")
 
     with client:
         db = client["data"]
         rental_collection = db["rental"]
         customer_collection = db["customers"]
 
+        # Retrieve userIDs of customers that rented the product
         current_rentals = rental_collection.find({'\ufeffproduct_id': product_id})
+        rental_customers = [rental['user_id'] for rental in current_rentals]
+        logger.debug(rental_customers)
 
-        for rental in current_rentals:
-            print(rental)
+        # Retrieve info of customers that rented product with userID
+        rental_customer_dict = dict()
+        for customer in rental_customers:
+            customer_info = dict()
+            for curr_customer in customer_collection.find({'\ufeffuser_id': customer}):
+                customer_info['name'] = curr_customer['name']
+                customer_info['address'] = curr_customer['address']
+                customer_info['zip_code'] = curr_customer['zip_code']
+                customer_info['phone_number'] = curr_customer['phone_number']
+                customer_info['email'] = curr_customer['email']
+                rental_customer_dict[customer] = customer_info
 
-        # for rental in rental_collection.find():
-        #     print(rental)
+        return rental_customer_dict
 
-        # for customer in customer_collection.find():
-        #         #     print(customer)
+def delete_db():
+    """Deletes current database collections"""
+
+    client = pymongo.MongoClient(
+        "mongodb+srv://uwvinh:uwtest2020@cluster0-ksxsk"
+        ".mongodb.net/test?retryWrites=true&w=majority")
+
+    with client:
+        db = client["data"]
+        customers_collection = db['cusomters']
+        products_collection = db['product']
+        rental_collection = db['rental']
+
+        customers_collection.drop()
+        products_collection.drop()
+        rental_collection.drop()
 
 
-
-def main():
-    #csv_files_directory = os.path.dirname(os.getcwd()) + "\data"
-    csv_files_directory = os.path.abspath("data")
-    logger.debug(csv_files_directory)
-
-    #print(import_data(csv_files_directory, "product.csv", "customers.csv", "rental.csv"))
-
-    #print(show_available_products())
-    print(show_rentals('prd002'))
-
-if __name__ == "__main__":
-    main()
+# def main():
+#     csv_files_directory = os.path.abspath("data")
+#     logger.debug(csv_files_directory)
+#     print(import_data(csv_files_directory, "product.csv", "customers.csv", "rental.csv"))
+#     print(show_available_products())
+#     print(show_rentals('prd002'))
+#     delete_db()
+#
+#
+# if __name__ == "__main__":
+#     main()
